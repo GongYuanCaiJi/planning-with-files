@@ -218,14 +218,15 @@ These amazing people have contributed code, documentation, or significant improv
   - Changed shebangs from `/bin/bash` to `/usr/bin/env bash` across hook scripts
   - Fixes compatibility on systems like NixOS where bash is not at `/bin/bash`
 
-- **[@TomXPRIME](https://github.com/TomXPRIME)** - [PR #157](https://github.com/OthmanAdi/planning-with-files/pull/157)
-  - Brought the `.pi` adapter up to full hook parity with Claude Code by shipping a bundled TypeScript extension under `.pi/skills/planning-with-files/extensions/planning-with-files/`
+- **[@TomXPRIME](https://github.com/TomXPRIME)** - [PR #157](https://github.com/OthmanAdi/planning-with-files/pull/157), [PR #158](https://github.com/OthmanAdi/planning-with-files/pull/158)
+  - PR #157: brought the `.pi` adapter up to full hook parity with Claude Code by shipping a bundled TypeScript extension under `.pi/skills/planning-with-files/extensions/planning-with-files/`
   - Mapped eight Pi lifecycle events to the same behavior the skill provides on Claude Code: `session_start` runs session catchup, `before_agent_start` injects plan context, `tool_call` adds pre-tool recitation, `tool_result` appends the post-write reminder, `agent_end` auto-continues incomplete plans with a per-session+plan limit of three, `session_before_compact` flushes the plan reminder with the active `Plan-SHA256`, `session_shutdown` clears loop timers and per-session state, `input` resets the auto-continue counter
   - Added a four-mode system (`auto`, `parity`, `cache-safe`, `notify`) with DeepSeek auto-detection from `ctx.model.provider` and `ctx.model.id`, so cache-prefix-sensitive models keep their KV-cache stable
   - Wired the existing v2.37 SHA-256 attestation gate into the Pi runtime so the same `.attestation` file locks the plan across both Claude Code and Pi
   - Registered four slash commands (`/plan-status`, `/plan-attest`, `/plan-goal`, `/plan-loop`) mirroring their Claude Code counterparts
   - Added 12 contract tests covering packaging, declared capabilities, and documentation strings; iterated through PRs #155 and #156 to land code-only and version-clean in #157
-  - **Impact:** Removes the long-standing "hooks are Claude Code only" gap in the `.pi` adapter and gives DeepSeek+Pi users a cache-safe reminder path that does not invalidate the KV-cache prefix on every turn
+  - PR #158: closed the Pi SKILL.md sync gap after v2.39.0 shipped. Backported Rule 7 (Continue After Completion), the Security Boundary section, the expanded Scripts section covering `set-active-plan.sh`/`resolve-plan-dir.sh`/`attest-plan.sh` and the parallel task workflow, and the "Write web content to task_plan.md" anti-pattern row. Renamed the npm package from the unscoped `pi-planning-with-files` to `@tomxprime/planning-with-files`, matching the package author's npm namespace. Rewrote the install docs to point at the scoped package and to use `pi install ./.pi/skills/planning-with-files` (local path) for manual installs. Removed the redundant manual session-catchup instruction since the Pi extension handles that lifecycle event automatically
+  - **Impact:** Pi adapter now ships at parity with Claude Code in both runtime behavior (PR #157) and instruction surface (PR #158). DeepSeek+Pi users get a cache-safe reminder path that does not invalidate the KV-cache prefix on every turn, and the npm publishing chain is now under the scoped namespace of the package author
 
 - **[@DLI1996](https://github.com/DLI1996)** - [Issue #154](https://github.com/OthmanAdi/planning-with-files/issues/154)
   - Caught that `docs/codex.md` instructed users to set `codex_hooks = true` in `~/.codex/config.toml`, while OpenAI's current Codex hooks docs (developers.openai.com/codex/hooks) now make `hooks` the canonical key and `codex_hooks` a deprecated alias
@@ -284,4 +285,4 @@ If you've contributed and don't see your name here, please open an issue! We wan
 
 **Total Contributors:** 40+ and growing!
 
-*Last updated: May 21, 2026*
+*Last updated: May 22, 2026*

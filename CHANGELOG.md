@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.40.1] - 2026-05-22
+
+### Fixed
+
+- **Pi adapter SKILL.md sync gap** (PR #158 by @TomXPRIME): the `.pi/skills/planning-with-files/SKILL.md` variant lagged the canonical Claude Code copy after v2.39.0 shipped. Four pieces of surface were missing on Pi: Rule 7 (Continue After Completion) covering multi-cycle plan extension when the user requests additional work, the Security Boundary section documenting the BEGIN/END delimiter framing plus the v2.37 hash attestation defense layers, the expanded Scripts section covering `set-active-plan.sh`, `resolve-plan-dir.sh`, `attest-plan.sh`, and the parallel task workflow, and the "Write web content to task_plan.md" anti-pattern row. v2.40.1 backports all four items so Pi users get the same instruction surface as Claude Code users. The redundant manual session-catchup instruction in the Pi SKILL.md is removed because the Pi extension shipped in v2.39.0 handles that lifecycle event automatically.
+- **Pi npm package scope correction** (PR #158): `.pi/skills/planning-with-files/package.json` `name` field was set to the unscoped `pi-planning-with-files`. Tom owns the npm publishing chain for the Pi package; the unscoped form had ownership ambiguity. v2.40.1 renames to `@tomxprime/planning-with-files`, matching the package author's npm namespace. Author "Ahmad Othman Ammar Adi", repository URL, license, and bugs URL are preserved. No new dependencies, no preinstall or postinstall scripts, no new bin entries, no new files; only the `name` field changed.
+- **Pi install docs updated** (PR #158): `.pi/skills/planning-with-files/README.md` install command updated to `pi install npm:@tomxprime/planning-with-files`. The manual install section is rewritten to use `pi install ./.pi/skills/planning-with-files` (local path) or a `.pi/settings.json` `packages` entry, replacing the previous "copy the folder into your skills dir then `/reload`" prose. SKILL.md cross-references updated to match.
+
+### Changed
+
+- Version bumped to 2.40.1 across the 14 SKILL.md variants, `plugin.json`, `marketplace.json`, and `CITATION.cff` via `scripts/bump-version.py`. `.continue`, `.gemini`, `.pi`, `.kiro` lag intentionally per CLAUDE.md release scope.
+
+### Verification
+
+- Test count: 130 pass / 2 pre-existing Windows exec-bit failures (test_script_permissions, unchanged from v2.40.0 and unrelated to this release). PR #158 changes the Pi adapter doc surface and `package.json` `name`; the Pi extension TypeScript runtime, hook bodies, and canonical Claude Code surface are not touched. Safety audit on the PR confirmed no supply-chain attack vectors: no new dependencies, no install hooks, no bin shims, no new files, author and repository metadata preserved.
+
+### Thanks
+
+- @TomXPRIME: second contribution after the Pi full hook parity extension in v2.39.0. The Pi adapter is now actively maintained by its author, with the npm publishing chain pointing at his scoped namespace and the SKILL.md surface kept in sync with the canonical Claude Code copy.
+
 ## [2.40.0] - 2026-05-21
 
 ### Fixed
