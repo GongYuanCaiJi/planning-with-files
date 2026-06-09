@@ -31,6 +31,55 @@ done
 SLUG_RE='^[A-Za-z0-9_][A-Za-z0-9._-]*$'
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd 2>/dev/null)" || SCRIPT_DIR="."
 
+# Portable path canonicalizer. realpath first (Linux, modern coreutils),
+# then readlink -f (older GNU), then python3/python os.path.realpath. Prints
+# the canonical absolute path on success; prints nothing and returns 1 on a
+# full miss so the caller can decide what to do. No python spawn on the happy
+# path: realpath/readlink cover Linux, WSL, Git-Bash, and modern macOS.
+# (Copied verbatim from resolve-plan-dir.sh so hook injection gets the same
+# symlink containment as the resolver — see security A1.3.)
+canonicalize() {
+    target="$1"
+    if command -v realpath >/dev/null 2>&1; then
+        out="$(realpath "${target}" 2>/dev/null)" && [ -n "${out}" ] && {
+            printf "%s\n" "${out}"; return 0; }
+    fi
+    if command -v readlink >/dev/null 2>&1; then
+        out="$(readlink -f "${target}" 2>/dev/null)" && [ -n "${out}" ] && {
+            printf "%s\n" "${out}"; return 0; }
+    fi
+    if command -v python3 >/dev/null 2>&1; then
+        out="$(python3 -c "import os,sys;print(os.path.realpath(sys.argv[1]))" "${target}" 2>/dev/null)" \
+            && [ -n "${out}" ] && { printf "%s\n" "${out}"; return 0; }
+    fi
+    if command -v python >/dev/null 2>&1; then
+        out="$(python -c "import os,sys;print(os.path.realpath(sys.argv[1]))" "${target}" 2>/dev/null)" \
+            && [ -n "${out}" ] && { printf "%s\n" "${out}"; return 0; }
+    fi
+    return 1
+}
+
+# Containment guard (security A1.3): a resolved plan dir must canonicalize to a
+# path under the project root (the CWD the script runs from). A symlink inside
+# a valid slug dir pointing at /etc or outside the workspace would otherwise let
+# the hooks hash and inject an arbitrary file. On any violation we return 1 so
+# the caller treats the candidate as unresolved and falls back safely. If
+# canonicalization is unavailable for BOTH paths we fail open (return 0) to keep
+# legacy behavior byte-equivalent on minimal shells that lack realpath/readlink
+# and python; the SLUG_RE check already blocks traversal in the slug name.
+is_within_root() {
+    candidate="$1"
+    root_real="$(canonicalize "${PWD}")" || root_real=""
+    cand_real="$(canonicalize "${candidate}")" || cand_real=""
+    if [ -z "${root_real}" ] || [ -z "${cand_real}" ]; then
+        return 0
+    fi
+    case "${cand_real}" in
+        "${root_real}"|"${root_real}"/*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 # --- Resolution (matches resolve-plan-dir.sh order, kept inline so the hook
 #     dispatch needs only one script on disk to function). ---
 RESOLVED=""
@@ -57,6 +106,13 @@ if [ -z "$RESOLVED" ] && [ -d .planning ]; then
 fi
 if [ -z "$RESOLVED" ] && [ -f task_plan.md ]; then RESOLVED="."; SCOPE="root"; fi
 [ -z "$RESOLVED" ] && exit 0
+
+# Containment guard (security A1.3): the resolved dir must canonicalize under the
+# project root before any file read. A symlinked slug dir pointing outside the
+# workspace would otherwise let the hook hash and inject an arbitrary file. On a
+# violation treat the plan as unresolved and exit silently. Fail-open when no
+# canonicalizer exists keeps legacy byte-equivalence on minimal shells.
+is_within_root "$RESOLVED" || exit 0
 
 if [ "$SCOPE" = "root" ]; then
     PLAN_FILE="task_plan.md"
