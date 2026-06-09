@@ -1,12 +1,19 @@
-"""Regression tests for the PreCompact hook (v2.38.0).
+"""Regression tests for the PreCompact reminder (v2.38.0, v3 dispatcher).
 
-PreCompact fires on Claude Code's autoCompact and manual /compact. The hook
-re-injects a planning reminder before context compaction. It must:
-  - Be declared in the canonical SKILL.md frontmatter.
-  - Match all triggers (manual and auto).
-  - Print a reminder when task_plan.md exists.
-  - Stay silent when task_plan.md is absent.
-  - Surface the Plan-SHA256 hash when an attestation is set.
+PreCompact fires on Claude Code's autoCompact and manual /compact. It re-injects
+a planning reminder before context compaction. Contract:
+  - Declared in the canonical SKILL.md frontmatter with a wildcard matcher so
+    both manual and auto triggers fire.
+  - The scalar is a thin v3 dispatcher to scripts/inject-plan.sh (build decision
+    "hooks become thin dispatchers"); it carries the --context=precompact flag.
+  - inject-plan.sh --context=precompact prints a reminder when task_plan.md
+    exists, stays silent when absent, and surfaces Plan-SHA256 when an
+    attestation is set.
+
+History: this file used to extract the inline PreCompact bash scalar and run it
+standalone. v3 reduced the scalar to a dispatcher that exits silently without
+CLAUDE_SKILL_DIR, so the behavioral assertions now run inject-plan.sh directly
+with CLAUDE_SKILL_DIR set. The contract is unchanged.
 """
 from __future__ import annotations
 
@@ -21,18 +28,12 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CANONICAL_SKILL = REPO_ROOT / "skills" / "planning-with-files" / "SKILL.md"
+SKILL_DIR = REPO_ROOT / "skills" / "planning-with-files"
+INJECT_PLAN = SKILL_DIR / "scripts" / "inject-plan.sh"
 
 
-def extract_precompact_command(text: str) -> str:
-    """Pull the PreCompact hook command string out of SKILL.md frontmatter.
-
-    Frontmatter format:
-      PreCompact:
-        - matcher: "*"
-          hooks:
-            - type: command
-              command: "..."
-    """
+def extract_precompact_scalar(text: str) -> str:
+    """Pull the PreCompact command scalar out of SKILL.md frontmatter."""
     in_section = False
     for line in text.splitlines():
         stripped = line.strip()
@@ -44,7 +45,6 @@ def extract_precompact_command(text: str) -> str:
             if m:
                 return m.group(1).replace('\\"', '"')
         if in_section and stripped.endswith(":") and not stripped.startswith("-") and stripped != "hooks:":
-            # Next top-level frontmatter key starts a new section.
             break
     return ""
 
@@ -64,23 +64,68 @@ class PreCompactHookDeclarationTests(unittest.TestCase):
             "PreCompact should match all triggers ('*'), got something stricter",
         )
 
+    def test_precompact_scalar_is_thin_dispatcher(self) -> None:
+        # The scalar must dispatch to inject-plan.sh with the precompact context,
+        # carry both install fallbacks, and contain no literal '---' (YAML
+        # collision class, Discussion #153).
+        scalar = extract_precompact_scalar(self.text)
+        self.assertTrue(scalar, "Could not extract PreCompact scalar from SKILL.md")
+        self.assertIn("${CLAUDE_SKILL_DIR}/scripts/inject-plan.sh", scalar)
+        self.assertIn("--context=precompact", scalar)
+        self.assertIn(
+            "$HOME/.claude/skills/planning-with-files/scripts/inject-plan.sh", scalar
+        )
+        self.assertNotIn("---", scalar)
+
 
 @unittest.skipUnless(shutil.which("sh"), "sh not available on this platform")
-class PreCompactCommandBehaviorTests(unittest.TestCase):
+class PreCompactDispatcherSilentTests(unittest.TestCase):
+    """The dispatcher scalar itself must never break compaction."""
+
+    def test_dispatcher_silent_exit_when_script_absent(self) -> None:
+        scalar = extract_precompact_scalar(CANONICAL_SKILL.read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as fake_home:
+            script = Path(tmp) / "_precompact_dispatch.sh"
+            script.write_text(scalar, encoding="utf-8")
+            env = os.environ.copy()
+            env.pop("CLAUDE_SKILL_DIR", None)
+            env["HOME"] = fake_home
+            result = subprocess.run(
+                ["sh", str(script)],
+                cwd=tmp,
+                text=True,
+                capture_output=True,
+                env=env,
+                check=False,
+            )
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual("", result.stdout.strip())
+
+
+@unittest.skipUnless(shutil.which("sh"), "sh not available on this platform")
+class PreCompactBehaviorTests(unittest.TestCase):
+    """Run inject-plan.sh --context=precompact directly (dispatcher target)."""
+
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp(prefix="pwf-precompact-"))
-        self.cmd = extract_precompact_command(CANONICAL_SKILL.read_text(encoding="utf-8"))
-        self.assertTrue(self.cmd, "Could not extract PreCompact command from SKILL.md")
+        self.home_dir = self.tmp / "_home"
+        self.home_dir.mkdir()
+        self.env = os.environ.copy()
+        self.env["CLAUDE_SKILL_DIR"] = str(SKILL_DIR)
+        self.env["HOME"] = str(self.home_dir)
+        self.env["XDG_CACHE_HOME"] = str(self.tmp / "_cache")
+        self.env.pop("PLAN_ID", None)
 
     def tearDown(self) -> None:
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def _run(self) -> subprocess.CompletedProcess:
+    def _run(self) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            ["sh", "-c", self.cmd],
+            ["sh", str(INJECT_PLAN), "--context=precompact"],
             cwd=str(self.tmp),
             text=True,
             capture_output=True,
+            env=self.env,
             check=False,
         )
 
