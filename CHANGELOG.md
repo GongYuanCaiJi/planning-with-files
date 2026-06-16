@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.1.3] - 2026-06-16
+
+A hotfix for a frontmatter regression introduced in v3.1.2. The refreshed description shipped in v3.1.2 contains a colon, and the English SKILL.md carry the `description` field unquoted, so the frontmatter became invalid YAML. This release quotes the description and adds a test that validates every SKILL.md frontmatter as YAML, so the class cannot ship again.
+
+### Fixed
+
+- **SKILL.md frontmatter was invalid YAML in v3.1.2** (regression from the v3.1.2 description refresh). The new description "Manus-style persistent file-based planning for AI coding agents: keeps ..." contains a colon followed by a space. The English SKILL.md carry `description` unquoted, so a YAML loader reads the `: ` as a nested mapping and rejects the frontmatter with "mapping values are not allowed here". This affected the canonical file and the seven English IDE variants (`.codebuddy`, `.codex`, `.cursor`, `.factory`, `.hermes`, `.mastracode`, `.opencode`) and could break skill loading and the model-triggering description field. The description is now wrapped in double quotes, matching the already-quoted translated variants. The parsed value is identical, so model triggering is unchanged. The `clawhub-upload` staging bundle was corrected the same way.
+
+### Added
+
+- **Frontmatter validation test** (`tests/test_skill_frontmatter_valid.py`): loads every `SKILL.md` frontmatter as YAML and asserts a non-empty string description, plus a dependency-free check that no unquoted description contains `: `. The version-parity check is a regex and could not catch this regression.
+
+### Changed
+
+- Version bumped to 3.1.3 across the 17 parity-locked files via `scripts/bump-version.py`. `.continue`, `.gemini`, `.pi`, and `.kiro` lag intentionally per AGENTS.md release scope.
+
+### Verification
+
+- Python suite: 184 passed, 4 skipped, 0 failed, up from 180 with the four new frontmatter assertions.
+- Every SKILL.md in the repo, including the translated variants and the lagging `.continue`, `.gemini`, `.pi`, and `.kiro` variants, parses as valid YAML.
+
 ## [3.1.2] - 2026-06-16
 
 A documentation patch. The session-catchup command in the skill body assumed the plugin runtime had set `${CLAUDE_PLUGIN_ROOT}`, so a skill-only install that ran the documented command in a normal shell got an empty variable and a broken path. This release adds a fallback across the affected variants, fixes the same class of bug in the `.hermes` variant, and refreshes the skill description to lead with the current positioning.

@@ -1,6 +1,6 @@
 {
   "name": "planning-with-files",
-  "version": "3.1.2",
+  "version": "3.1.3",
   "description": "Persistent file-based planning for AI coding agents. Crash-proof markdown plans (task_plan.md, findings.md, progress.md) that survive context loss and /clear, with an opt-in completion gate and multi-agent shared state. Manus-style. Works with Claude Code, Codex CLI, Cursor, Kiro, OpenCode and 60+ agents via the SKILL.md standard. Includes Arabic, German, Spanish, and Chinese (Simplified and Traditional).",
   "author": {
     "name": "OthmanAdi",

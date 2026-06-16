@@ -9,7 +9,7 @@
       "name": "planning-with-files",
       "source": "./",
       "description": "Persistent file-based planning for AI coding agents. Crash-proof markdown plans that survive context loss, /clear, and crashes, with an opt-in completion gate and multi-agent shared state on disk. Manus-style, installs across 60+ agents via the SKILL.md standard.",
-      "version": "3.1.2"
+      "version": "3.1.3"
     }
   ]
 }
